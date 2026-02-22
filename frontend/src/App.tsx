@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useNetwork } from "./hooks/useNetwork";
 import { useWallet } from "./hooks/useWallet";
-import { Spinner } from "./components/UI";
+import { Spinner, ErrorBoundary } from "./components/UI";
 
 // Lazy load below-the-fold components for performance
 const LandingPage = lazy(() => import("./pages/LandingPage").then(module => ({ default: module.default })));
@@ -10,7 +10,7 @@ const NotFoundRoute = lazy(() => import("./routes/NotFoundRoute").then(module =>
 // Loading fallback for lazy-loaded components
 function PageLoader() {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-background-dark" role="status" aria-label="Loading page">
+    <div className="flex items-center justify-center min-h-screen bg-gray-50" role="status" aria-label="Loading page">
       <Spinner size="lg" />
       <span className="sr-only">Loading...</span>
     </div>
@@ -95,11 +95,16 @@ function App() {
   }, [pathname, wallet, connect, disconnect, isConnecting]);
 
   return (
-    <Suspense fallback={<PageLoader />}>
-      <div id="main-content" tabIndex={-1}>
-        {page}
-      </div>
-    </Suspense>
+    <ErrorBoundary>
+      <a href="#main-content" className="skip-to-main">
+        Skip to main content
+      </a>
+      <Suspense fallback={<PageLoader />}>
+        <div id="main-content" tabIndex={-1}>
+          {page}
+        </div>
+      </Suspense>
+    </ErrorBoundary>
   );
 }
 

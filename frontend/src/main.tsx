@@ -4,6 +4,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { ErrorBoundary } from "./components/UI/ErrorBoundary";
 import { initPWA } from "./services/pwa";
+import { setupGlobalErrorHandling } from "./utils/errors";
 import { ToastProvider } from "./providers/ToastProvider";
 
 if (import.meta.env.PROD) {
@@ -17,6 +18,9 @@ if (import.meta.env.PROD) {
     });
   });
 }
+
+// Initialize global error handling and logging
+setupGlobalErrorHandling();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
