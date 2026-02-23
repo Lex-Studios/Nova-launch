@@ -1,93 +1,47 @@
-# Nova Launch Webhook System
+# Nova Launch Admin Dashboard API
 
-Backend API for managing webhook subscriptions and delivering real-time notifications for burn events and token operations on the Stellar blockchain.
+Backend API for the Nova Launch admin dashboard with protected endpoints for platform management, statistics, and content moderation.
 
 ## Features
 
-- ✅ Subscribe to webhook events
-- ✅ Unsubscribe from webhooks
-- ✅ List user subscriptions
-- ✅ Automatic event detection from Stellar
-- ✅ Retry logic with exponential backoff
-- ✅ HMAC signature verification
-- ✅ Rate limiting per webhook
-- ✅ Delivery logs and monitoring
-- ✅ PostgreSQL database storage
+- 🔐 Admin authentication with JWT
+- 👥 Role-based access control (RBAC)
+- 📊 Platform statistics and analytics
+- 🎯 Token management (flag, soft delete, update)
+- 👤 User management (ban, role changes)
+- 📝 Comprehensive audit logging
+- 📤 Data export functionality
+- 🔒 Rate limiting and security headers
 
-## Architecture
+## Tech Stack
 
-```
-┌─────────────────────────────────────────────────────────┐
-│              Stellar Network (Horizon API)              │
-└─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│           Stellar Event Listener (Polling)              │
-│  - Monitors contract events                             │
-│  - Parses burn/create/update events                     │
-└─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│            Webhook Delivery Service                     │
-│  - Finds matching subscriptions                         │
-│  - Generates signed payloads                            │
-│  - Delivers with retry logic                            │
-│  - Logs delivery attempts                               │
-└─────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────┐
-│              User Webhook Endpoints                     │
-└─────────────────────────────────────────────────────────┘
-```
+- Node.js + Express
+- TypeScript
+- JWT for authentication
+- Zod for validation
+- Vitest for testing
 
-## Installation
+## Getting Started
+
+### Installation
 
 ```bash
 cd backend
 npm install
 ```
 
-## Database Setup
-
-1. Install PostgreSQL
-2. Create database:
-
-```bash
-createdb nova_launch
-```
-
-3. Run schema:
-
-```bash
-psql -d nova_launch -f src/database/schema.sql
-```
-
-## Configuration
+### Environment Setup
 
 Copy `.env.example` to `.env` and configure:
 
-```env
-PORT=3001
-NODE_ENV=development
-
-# Database
-DATABASE_URL=postgresql://user:password@localhost:5432/nova_launch
-
-# Stellar
-STELLAR_NETWORK=testnet
-STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
-FACTORY_CONTRACT_ID=<your-contract-id>
-
-# Webhook Settings
-WEBHOOK_TIMEOUT_MS=5000
-WEBHOOK_MAX_RETRIES=3
-WEBHOOK_RETRY_DELAY_MS=1000
+```bash
+cp .env.example .env
 ```
 
-## Running
+Required environment variables:
+- `PORT` - Server port (default: 3001)
+- `ADMIN_JWT_SECRET` - Secret for admin JWT tokens
+- `DATABASE_URL` - Database connection string
 
 ### Development
 
@@ -95,10 +49,15 @@ WEBHOOK_RETRY_DELAY_MS=1000
 npm run dev
 ```
 
-### Production
+### Build
 
 ```bash
 npm run build
+```
+
+### Production
+
+```bash
 npm start
 ```
 
@@ -106,322 +65,349 @@ npm start
 
 ```bash
 npm test
-npm run test:coverage
 ```
 
 ## API Endpoints
 
-### POST /api/webhooks/subscribe
+### Authentication
 
-Create a new webhook subscription.
+All admin endpoints require authentication via Bearer token:
 
-**Request:**
-```json
-{
-  "url": "https://example.com/webhook",
-  "tokenAddress": "GTOKEN...", // optional, null = all tokens
-  "events": ["token.burn.self", "token.created"],
-  "createdBy": "GUSER..."
-}
 ```
+Authorization: Bearer <admin_jwt_token>
+```
+
+### Statistics
+
+#### GET /api/admin/stats
+
+Get platform statistics including:
+- Total tokens created
+- Total burns executed
+- Total volume burned
+- Active users count
+- Revenue generated
+- Platform health metrics
+- Growth metrics (daily/weekly/monthly)
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "uuid",
-    "url": "https://example.com/webhook",
-    "tokenAddress": null,
-    "events": ["token.burn.self", "token.created"],
-    "secret": "abcd1234...", // truncated for security
-    "active": true,
-    "createdBy": "GUSER...",
-    "createdAt": "2026-02-23T10:00:00Z",
-    "lastTriggered": null
+  "totalTokens": 150,
+  "totalBurns": 45,
+  "totalVolumeBurned": "1000000",
+  "activeUsers": 89,
+  "revenueGenerated": "5000",
+  "platformHealth": {
+    "uptime": 86400,
+    "errorRate": 0.01,
+    "avgResponseTime": 150
   },
-  "message": "Webhook subscription created successfully"
-}
-```
-
-### DELETE /api/webhooks/unsubscribe/:id
-
-Delete a webhook subscription.
-
-**Request:**
-```json
-{
-  "createdBy": "GUSER..."
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Webhook subscription deleted successfully"
-}
-```
-
-### POST /api/webhooks/list
-
-List webhook subscriptions for a user.
-
-**Request:**
-```json
-{
-  "createdBy": "GUSER...",
-  "active": true // optional
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": "uuid",
-      "url": "https://example.com/webhook",
-      "tokenAddress": null,
-      "events": ["token.burn.self"],
-      "secret": "abcd1234...",
-      "active": true,
-      "createdBy": "GUSER...",
-      "createdAt": "2026-02-23T10:00:00Z",
-      "lastTriggered": "2026-02-23T11:00:00Z"
-    }
-  ],
-  "count": 1
-}
-```
-
-### GET /api/webhooks/:id
-
-Get a specific webhook subscription.
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "uuid",
-    "url": "https://example.com/webhook",
-    "tokenAddress": null,
-    "events": ["token.burn.self"],
-    "secret": "abcd1234...",
-    "active": true,
-    "createdBy": "GUSER...",
-    "createdAt": "2026-02-23T10:00:00Z",
-    "lastTriggered": "2026-02-23T11:00:00Z"
+  "growth": {
+    "daily": { "newTokens": 5, "newUsers": 12, "burnVolume": "50000", "revenue": "250" },
+    "weekly": { "newTokens": 28, "newUsers": 67, "burnVolume": "300000", "revenue": "1500" },
+    "monthly": { "newTokens": 120, "newUsers": 250, "burnVolume": "900000", "revenue": "4500" }
   }
 }
 ```
 
-### PATCH /api/webhooks/:id/toggle
+### Token Management
 
-Toggle webhook active status.
+#### GET /api/admin/tokens
 
-**Request:**
-```json
-{
-  "active": false
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Subscription deactivated successfully"
-}
-```
-
-### GET /api/webhooks/:id/logs
-
-Get delivery logs for a subscription.
+List all tokens with optional filters.
 
 **Query Parameters:**
-- `limit` (optional): Number of logs to return (default: 50)
+- `flagged` - Filter by flagged status (true/false)
+- `deleted` - Include deleted tokens (true/false)
+- `creator` - Filter by creator address
+- `search` - Search by name, symbol, or address
 
 **Response:**
 ```json
 {
-  "success": true,
-  "data": [
-    {
-      "id": "uuid",
-      "subscriptionId": "uuid",
-      "event": "token.burn.self",
-      "payload": { ... },
-      "statusCode": 200,
-      "success": true,
-      "attempts": 1,
-      "lastAttemptAt": "2026-02-23T11:00:00Z",
-      "errorMessage": null,
-      "createdAt": "2026-02-23T11:00:00Z"
-    }
-  ],
-  "count": 1
+  "tokens": [...],
+  "total": 150
 }
 ```
 
-### POST /api/webhooks/:id/test
+#### GET /api/admin/tokens/:id
 
-Test a webhook subscription.
+Get detailed token information including creator details.
 
 **Response:**
 ```json
 {
-  "success": true,
-  "message": "Test webhook delivered successfully"
-}
-```
-
-## Event Types
-
-| Event Type | Description |
-|------------|-------------|
-| `token.burn.self` | User burns their own tokens |
-| `token.burn.admin` | Admin burns tokens |
-| `token.created` | New token deployed |
-| `token.metadata.updated` | Token metadata updated |
-
-## Webhook Payload
-
-All webhook deliveries include:
-
-```json
-{
-  "event": "token.burn.self",
-  "timestamp": "2026-02-23T11:00:00Z",
-  "data": {
-    "tokenAddress": "GTOKEN...",
-    "from": "GUSER...",
-    "amount": "1000000",
-    "burner": "GUSER...",
-    "transactionHash": "abc123...",
-    "ledger": 12345
+  "token": {
+    "id": "token_1",
+    "name": "Sample Token",
+    "symbol": "SMPL",
+    "contractAddress": "CTOKEN...",
+    "creatorAddress": "GCREATOR...",
+    "totalSupply": "1000000",
+    "burned": "50000",
+    "flagged": false,
+    "deleted": false,
+    "metadata": {},
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
   },
-  "signature": "hmac-sha256-signature"
-}
-```
-
-### Headers
-
-- `Content-Type: application/json`
-- `X-Webhook-Signature`: HMAC SHA256 signature
-- `X-Webhook-Event`: Event type
-- `User-Agent: Nova-Launch-Webhook/1.0`
-
-## Signature Verification
-
-Verify webhook authenticity:
-
-```javascript
-const crypto = require('crypto');
-
-function verifyWebhook(payload, signature, secret) {
-  const expectedSignature = crypto
-    .createHmac('sha256', secret)
-    .update(JSON.stringify(payload))
-    .digest('hex');
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
-}
-```
-
-## Rate Limiting
-
-- Global: 100 requests per 15 minutes per IP
-- Webhook operations: 20 requests per 15 minutes per IP
-- Per-webhook delivery: Configurable via database
-
-## Retry Logic
-
-Failed webhook deliveries are retried with exponential backoff:
-
-1. Attempt 1: Immediate
-2. Attempt 2: After 1 second
-3. Attempt 3: After 2 seconds
-
-After 3 failed attempts, the delivery is marked as failed and logged.
-
-## Monitoring
-
-Check delivery logs via:
-- `GET /api/webhooks/:id/logs` - View delivery history
-- Database `webhook_delivery_logs` table
-- Application logs
-
-## Security
-
-- HMAC SHA256 signature verification
-- HTTPS-only webhook URLs recommended
-- Rate limiting on all endpoints
-- Helmet.js security headers
-- Input validation with express-validator
-- SQL injection prevention via parameterized queries
-
-## Example Webhook Receiver
-
-```javascript
-const express = require('express');
-const crypto = require('crypto');
-
-const app = express();
-app.use(express.json());
-
-const WEBHOOK_SECRET = 'your-webhook-secret';
-
-app.post('/webhook', (req, res) => {
-  const signature = req.headers['x-webhook-signature'];
-  const payload = JSON.stringify(req.body);
-  
-  // Verify signature
-  const expectedSignature = crypto
-    .createHmac('sha256', WEBHOOK_SECRET)
-    .update(payload)
-    .digest('hex');
-  
-  if (signature !== expectedSignature) {
-    return res.status(401).json({ error: 'Invalid signature' });
+  "creator": {
+    "id": "user_1",
+    "address": "GCREATOR...",
+    "role": "user",
+    "banned": false,
+    "createdAt": "2024-01-01T00:00:00.000Z"
   }
-  
-  // Process event
-  const { event, data } = req.body;
-  console.log(`Received ${event}:`, data);
-  
-  // Respond quickly
-  res.json({ received: true });
-});
-
-app.listen(3000);
+}
 ```
 
-## Troubleshooting
+#### PATCH /api/admin/tokens/:id
 
-### Webhooks not being delivered
+Update token (flag/unflag, update metadata).
 
-1. Check subscription is active: `GET /api/webhooks/:id`
-2. Verify event listener is running (check logs)
-3. Check delivery logs: `GET /api/webhooks/:id/logs`
-4. Test webhook manually: `POST /api/webhooks/:id/test`
+**Permissions:** Admin or Super Admin
 
-### Database connection errors
+**Request Body:**
+```json
+{
+  "flagged": true,
+  "metadata": {
+    "reason": "Suspicious activity",
+    "reviewedBy": "admin_1"
+  }
+}
+```
 
-1. Verify PostgreSQL is running
-2. Check `.env` database credentials
-3. Ensure database exists and schema is loaded
+#### DELETE /api/admin/tokens/:id
 
-### Event listener not detecting events
+Soft delete a token.
 
-1. Verify `FACTORY_CONTRACT_ID` is set in `.env`
-2. Check Stellar network configuration
-3. Ensure contract is deployed and emitting events
+**Permissions:** Super Admin only
+
+### User Management
+
+#### GET /api/admin/users
+
+List all users with optional filters.
+
+**Query Parameters:**
+- `banned` - Filter by banned status (true/false)
+- `role` - Filter by role (user/admin/super_admin)
+- `search` - Search by address or ID
+
+**Response:**
+```json
+{
+  "users": [...],
+  "total": 89
+}
+```
+
+#### GET /api/admin/users/:id
+
+Get user details with activity and tokens.
+
+**Response:**
+```json
+{
+  "user": {...},
+  "tokens": [...],
+  "activity": {
+    "tokensCreated": 5,
+    "totalBurned": "100000",
+    "adminActions": 0
+  },
+  "recentAuditLogs": [...]
+}
+```
+
+#### PATCH /api/admin/users/:id
+
+Update user (ban/unban, change role).
+
+**Permissions:** Super Admin only
+
+**Request Body:**
+```json
+{
+  "banned": true,
+  "role": "admin"
+}
+```
+
+#### GET /api/admin/users/:id/export
+
+Export user data including all tokens and activity.
+
+**Response:** JSON file download
+
+### Audit Logs
+
+#### GET /api/admin/audit
+
+Get audit logs with filters and pagination.
+
+**Query Parameters:**
+- `adminId` - Filter by admin ID
+- `action` - Filter by action type
+- `resource` - Filter by resource type
+- `startDate` - Filter by start date (ISO 8601)
+- `endDate` - Filter by end date (ISO 8601)
+- `limit` - Results per page (default: 50)
+- `offset` - Pagination offset (default: 0)
+
+**Response:**
+```json
+{
+  "logs": [...],
+  "pagination": {
+    "total": 500,
+    "limit": 50,
+    "offset": 0,
+    "hasMore": true
+  }
+}
+```
+
+#### GET /api/admin/audit/export
+
+Export audit logs as JSON file.
+
+**Query Parameters:** Same as GET /api/admin/audit
+
+**Response:** JSON file download
+
+## Role-Based Access Control
+
+### Roles
+
+1. **user** - Regular platform users (no admin access)
+2. **admin** - Can view stats, manage tokens, view users
+3. **super_admin** - Full access including user management and deletions
+
+### Permission Matrix
+
+| Endpoint | User | Admin | Super Admin |
+|----------|------|-------|-------------|
+| GET /api/admin/stats | ❌ | ✅ | ✅ |
+| GET /api/admin/tokens | ❌ | ✅ | ✅ |
+| PATCH /api/admin/tokens/:id | ❌ | ✅ | ✅ |
+| DELETE /api/admin/tokens/:id | ❌ | ❌ | ✅ |
+| GET /api/admin/users | ❌ | ✅ | ✅ |
+| PATCH /api/admin/users/:id | ❌ | ❌ | ✅ |
+| GET /api/admin/audit | ❌ | ✅ | ✅ |
+
+## Audit Logging
+
+All admin actions are automatically logged with:
+- Admin ID
+- Action type (method + endpoint)
+- Resource type and ID
+- Before/after state
+- IP address and user agent
+- Timestamp
+
+Audit logs are searchable, filterable, and exportable.
+
+## Security Features
+
+- JWT-based authentication
+- Role-based access control
+- Rate limiting (100 requests per 15 minutes)
+- Helmet.js security headers
+- CORS protection
+- Input validation with Zod
+- Soft deletes (data preservation)
+
+## Error Handling
+
+All endpoints return consistent error responses:
+
+```json
+{
+  "error": "Error message",
+  "details": {} // Optional validation details
+}
+```
+
+HTTP Status Codes:
+- 200 - Success
+- 400 - Bad Request (validation error)
+- 401 - Unauthorized (missing/invalid token)
+- 403 - Forbidden (insufficient permissions)
+- 404 - Not Found
+- 500 - Internal Server Error
+
+## Development
+
+### Project Structure
+
+```
+backend/
+├── src/
+│   ├── config/
+│   │   └── database.ts       # Database operations
+│   ├── middleware/
+│   │   ├── auth.ts           # Authentication & RBAC
+│   │   └── auditLog.ts       # Audit logging
+│   ├── routes/
+│   │   └── admin/
+│   │       ├── index.ts      # Route aggregator
+│   │       ├── stats.ts      # Statistics endpoints
+│   │       ├── tokens.ts     # Token management
+│   │       ├── users.ts      # User management
+│   │       └── audit.ts      # Audit logs
+│   ├── types/
+│   │   └── index.ts          # TypeScript types
+│   ├── __tests__/
+│   │   └── admin.test.ts     # Tests
+│   └── index.ts              # Main application
+├── .env.example
+├── package.json
+├── tsconfig.json
+└── vitest.config.ts
+```
+
+## Testing
+
+Run tests with coverage:
+
+```bash
+npm test
+```
+
+Tests cover:
+- Database operations
+- User management
+- Token management
+- Audit logging
+- Filtering and pagination
+
+## Deployment
+
+1. Build the application:
+```bash
+npm run build
+```
+
+2. Set production environment variables
+
+3. Start the server:
+```bash
+npm start
+```
+
+## Future Enhancements
+
+- [ ] PostgreSQL/MongoDB integration
+- [ ] Real-time notifications
+- [ ] Advanced analytics dashboard
+- [ ] Bulk operations
+- [ ] Scheduled reports
+- [ ] Two-factor authentication
+- [ ] IP whitelisting
+- [ ] API versioning
 
 ## License
 
