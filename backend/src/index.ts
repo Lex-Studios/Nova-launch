@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import adminRoutes from './routes/admin';
+import leaderboardRoutes from './routes/leaderboard';
 import { Database } from './config/database';
 
 dotenv.config();
@@ -26,6 +27,7 @@ const limiter = rateLimit({
 });
 
 app.use('/api/admin', limiter);
+app.use('/api/leaderboard', limiter);
 
 // Body parsing middleware
 app.use(express.json());
@@ -36,6 +38,7 @@ Database.initialize();
 
 // Routes
 app.use('/api/admin', adminRoutes);
+app.use('/api/leaderboard', leaderboardRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
